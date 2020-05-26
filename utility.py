@@ -1,4 +1,5 @@
 import nltk
+import numpy as np
 from itertools import chain
 
 punct = set(u''':!),.:;?.]}¢'"、。〉》」』〕〗〞︰︱︳﹐､﹒
@@ -71,3 +72,15 @@ def get_author_feature(paper_id, item):
             name_feature + org_features + title_features + keywords_features + venue_features
         )
     return author_features
+
+def get_feature_emb(author_feature, idf, model):
+    vectors = []
+    sum_weight = 0
+    for item in author_feature:
+        if item not in model.wv:
+            continue
+        weight = idf[item] if item in idf else 1
+        vectors.append(model.wv[item] * weight)
+        sum_weight += weight
+
+    return np.sum(vectors, axis=0) / sum_weight

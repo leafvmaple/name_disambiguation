@@ -3,48 +3,40 @@ import codecs
 import random
 import pickle
 import math
+import gc
 import numpy as np
+from os.path import join
 from gensim.models import Word2Vec
 from collections import defaultdict
-from utility import get_author_feature
+from utility import get_author_feature, get_feature_emb
 
 train_pub_data_path = 'data/train/train_pub.json'
 # train_row_data_path = 'data/train/train_author.json'
 
-FEATURES_PATH      = "author_features.txt"
-FEATURES_JSON_PATH = "author_features.json"
-FEATURES_EMB_PATH  = "aminer.emb"
-FEATURES_IDF_PATH  = "feature_idf.pkl"
-
 class Disambiguation:
-    def __init__(self, pub_out_path=None, idf_out_path=None, emb_out_path=None):
-        self.pub_out_path = pub_out_path
-        self.idf_out_path = idf_out_path
-        self.emb_out_path = emb_out_path
+    def __init__(self):
+        self.paper_pub = {}
+        self.paper_idf = {}
+        self.paper_emb = {}
+        self.model = None
 
     def transform(self, pub_data):
-        paper_pub = {}
+        print("---------Transfrom------------")
+
         for paper_id, data in pub_data.items():
             author_features = get_author_feature(paper_id, data)
-        for i, author_feature in enumerate(author_features):
-            paper_pub["{}-{}".format(paper_id, i)] = author_feature
+            for i, author_feature in enumerate(author_features):
+                self.paper_pub["{}-{}".format(paper_id, i)] = author_feature
 
-        if self.pub_out_path:
-            with open(self.pub_out_path, 'w') as f:
-                json.dump(paper_pub, f, indent='\t')
+    def word2vec(self):
+        print("---------word2vec------------")
         
-        return paper_pub
-
-    def embedding(self, paper_pub):
-        paper_idf = {}
         paper_data = []
-        paper_emb = []
+
         counter = defaultdict(int)
-
         feature_cnt = 0
-        sum_weight = 0
 
-        for _, author_feature in paper_pub.items():
+        for _, author_feature in self.paper_pub.items():
             random.shuffle(author_feature)
             paper_data.append(author_feature)
 
@@ -53,42 +45,36 @@ class Disambiguation:
                 counter[feature_item] += 1
 
         for item in counter:
-            paper_idf[item] = math.log(feature_cnt / counter[item])
-        
-        if self.idf_out_path:
-            with open(self.idf_out_path, 'wb') as f:
-                pickle.dump(paper_idf, f)
+            self.paper_idf[item] = math.log(feature_cnt / counter[item])
 
-        model = Word2Vec(paper_data, size=100, window=5, min_count=5, workers=20)
-        if self.emb_out_path:
-            model.save(self.emb_out_path)
+        self.model = Word2Vec(paper_data, size=100, window=5, min_count=5, workers=20)
 
-        for _, author_feature in paper_pub.items():
-            for item in author_feature:
-                if item not in model.wv:
-                    continue
-                weight = paper_idf[item] if item in paper_idf else 1
-                paper_emb.append(model.wv[item] * weight)
-                sum_weight += weight
-        paper_emb = np.sum(paper_emb, axis=0) / sum_weight
+    def embedding(self):
+        print("---------embedding------------")
 
-        if self.emb_out_path:
-            np.save(self.emb_out_path, paper_emb)
-
-        return paper_emb
+        for author_id, author_feature in self.paper_pub.items():
+            self.paper_emb[author_id] = get_feature_emb(author_feature, self.paper_idf, self.model)
 
     def prepare(self, pub_data):
-        self.paper_pub = self.transform(pub_data)
-        self.paper_emb = self.embedding(self.paper_pub)
+        self.transform(pub_data)
+        self.word2vec()
+        self.embedding()
+
+    def save(self, output_path):
+        with open(output_path + "_pub.json", 'w') as f:
+            json.dump(self.paper_pub, f, indent='\t')
+
+        with open(output_path + "_pkl.idf", 'wb') as f:
+            pickle.dump(self.paper_idf, f)
+
+        self.model.save(output_path + ".model")
+        np.save(output_path, self.paper_emb)
 
 
 if __name__ == '__main__':
     
     train_pub_data = json.load(open(train_pub_data_path, 'r', encoding='utf-8'))
 
-    model = Disambiguation(
-        pub_out_path=FEATURES_JSON_PATH,
-        idf_out_path=FEATURES_IDF_PATH,
-        emb_out_path=FEATURES_EMB_PATH
-    )
+    model = Disambiguation()
     model.prepare(train_pub_data)
+    model.save("author_features")
