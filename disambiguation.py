@@ -8,10 +8,10 @@ import numpy as np
 from os.path import join
 from gensim.models import Word2Vec
 from collections import defaultdict
-from utility import get_author_feature, get_feature_emb
+from utility import get_author_feature, get_author_features, get_feature_emb
 
 train_pub_data_path = 'data/train/train_pub.json'
-# train_row_data_path = 'data/train/train_author.json'
+train_row_data_path = 'data/train/train_author.json'
 
 class Disambiguation:
     def __init__(self):
@@ -24,9 +24,10 @@ class Disambiguation:
         print("---------Transfrom------------")
 
         for paper_id, data in pub_data.items():
-            author_features = get_author_feature(paper_id, data)
-            for i, author_feature in enumerate(author_features):
-                self.paper_pub["{}-{}".format(paper_id, i)] = author_feature
+            self.paper_pub[paper_id] = get_author_feature(paper_id, data)
+            # author_features, author_name = get_author_features(paper_id, data)
+            # for i, author_feature in enumerate(author_features):
+            #    self.paper_pub["{}-{}".format(paper_id, author_name[i])] = author_feature
 
     def word2vec(self):
         print("---------word2vec------------")
@@ -52,13 +53,22 @@ class Disambiguation:
     def embedding(self):
         print("---------embedding------------")
 
-        for author_id, author_feature in self.paper_pub.items():
-            self.paper_emb[author_id] = get_feature_emb(author_feature, self.paper_idf, self.model)
+        for unique_id, author_feature in self.paper_pub.items():
+            self.paper_emb[unique_id] = get_feature_emb(author_feature, self.paper_idf, self.model)
 
     def prepare(self, pub_data):
         self.transform(pub_data)
         self.word2vec()
         self.embedding()
+
+    def global_data(self, author_data):
+        for _, author in author_data.items():
+            for _, papers in author.items():
+                for paper_id in papers:
+                    self.papers.append(paper_id)
+
+    def global_model(self, author_data):
+        self.global_data(author_data)
 
     def save(self, output_path):
         with open(output_path + "_pub.json", 'w') as f:
