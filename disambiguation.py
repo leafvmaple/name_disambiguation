@@ -18,6 +18,9 @@ class Disambiguation:
         self.paper_pub = {}
         self.paper_idf = {}
         self.paper_emb = {}
+
+        self.papers = []
+        self.triplet_data = []
         self.model = None
 
     def transform(self, pub_data):
@@ -66,9 +69,31 @@ class Disambiguation:
             for _, papers in author.items():
                 for paper_id in papers:
                     self.papers.append(paper_id)
+    
+    def generate_triplet(self, author_data):
+        for _, author in author_data.items():
+            for _, papers in author.items():
+                for i, paper_id in enumerate(papers):
+                    sample_length = min(6, len(papers))
+                    idxs = random.sample(range(len(papers)), sample_length)
+                    for idx in idxs:
+                        if idx == i:
+                            continue
+                        pos_paper = papers[idx]
+                        neg_paper = self.papers[random.randint(0, len(self.papers) - 1)]
+                        while neg_paper in papers:
+                            neg_paper = self.papers[random.randint(0, len(self.papers) - 1)]
+
+                        self.triplet_data.append([
+                            self.paper_emb[paper_id],
+                            self.paper_emb[pos_paper],
+                            self.paper_emb[neg_paper],
+                        ])
+
 
     def global_model(self, author_data):
         self.global_data(author_data)
+        self.genater_triplet(author_data)
 
     def save(self, output_path):
         with open(output_path + "_pub.json", 'w') as f:
