@@ -42,8 +42,7 @@ class GlobalTripletModel:
         self.model = Model([emb_anchor, emb_pos, emb_neg], stacked_dists, name='triple_siamese')
         self.model.compile(loss=triplet_loss, optimizer=Adam(lr=0.01), metrics=[accuracy])
 
-        inter_layer = Model(inputs=self.model.get_input_at(0), outputs=self.model.get_layer('norm_layer').get_output_at(0))
-
+        # inter_layer = Model(inputs=self.model.get_input_at(0), outputs=self.model.get_layer('norm_layer').get_output_at(0))
 
     def train(self, data):
         triplets_count = data["anchor_input"].shape[0]
