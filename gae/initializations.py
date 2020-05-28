@@ -1,5 +1,6 @@
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+
 
 def weight_variable_glorot(input_dim, output_dim, name=""):
     """Create a weight variable with Glorot & Bengio (AISTATS 2010)

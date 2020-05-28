@@ -200,7 +200,7 @@ class Disambiguation:
 
             print('Dataset {} has {} nodes, {} edges, {} features.'.format(name, adj.shape[0], len(row_idx), self.features[name].shape[1]))
 
-            self.gae_model.train(self.adj[name], self.features[name])
+            self.gae_model.train(adj, np.array(features), self.labels[name])
 
     def train_local_model(self, raw_data):
         with open(join(PROJ_DIR, "temp" ,"prepare_pub.json"), 'r') as f:

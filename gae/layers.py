@@ -27,7 +27,7 @@ def dropout_sparse(x, keep_prob, num_nonzero_elems):
     random_tensor += tf.random.uniform(noise_shape)
     dropout_mask = tf.cast(tf.floor(random_tensor), dtype=tf.bool)
     pre_out = tf.sparse.retain(x, dropout_mask)
-    return pre_out * (1./keep_prob)
+    return pre_out * (1. / keep_prob)
 
 
 class Layer(object):
@@ -41,6 +41,7 @@ class Layer(object):
             (i.e. takes input, returns output)
         __call__(inputs): Wrapper for _call()
     """
+
     def __init__(self, **kwargs):
         allowed_kwargs = {'name', 'logging'}
         for kwarg in kwargs.keys():
@@ -76,7 +77,7 @@ class GraphConvolution(Layer):
 
     def _call(self, inputs):
         x = inputs
-        x = tf.nn.dropout(x, 1 - (1-self.dropout))
+        x = tf.nn.dropout(x, 1 - (1 - self.dropout))
         x = tf.matmul(x, self.vars['weights'])
         x = tf.sparse.sparse_dense_matmul(self.adj, x)
         outputs = self.act(x)
@@ -85,6 +86,7 @@ class GraphConvolution(Layer):
 
 class GraphConvolutionSparse(Layer):
     """Graph convolution layer for sparse inputs."""
+
     def __init__(self, input_dim, output_dim, adj, features_nonzero, dropout=0., act=tf.nn.relu, **kwargs):
         super(GraphConvolutionSparse, self).__init__(**kwargs)
         with tf.compat.v1.variable_scope(self.name + '_vars'):
@@ -97,7 +99,7 @@ class GraphConvolutionSparse(Layer):
 
     def _call(self, inputs):
         x = inputs
-        x = dropout_sparse(x, 1-self.dropout, self.features_nonzero)
+        x = dropout_sparse(x, 1 - self.dropout, self.features_nonzero)
         x = tf.sparse.sparse_dense_matmul(x, self.vars['weights'])
         x = tf.sparse.sparse_dense_matmul(self.adj, x)
         outputs = self.act(x)
@@ -106,13 +108,14 @@ class GraphConvolutionSparse(Layer):
 
 class InnerProductDecoder(Layer):
     """Decoder model layer for link prediction."""
+
     def __init__(self, input_dim, dropout=0., act=tf.nn.sigmoid, **kwargs):
         super(InnerProductDecoder, self).__init__(**kwargs)
         self.dropout = dropout
         self.act = act
 
     def _call(self, inputs):
-        inputs = tf.nn.dropout(inputs, 1 - (1-self.dropout))
+        inputs = tf.nn.dropout(inputs, 1 - (1 - self.dropout))
         x = tf.transpose(a=inputs)
         x = tf.matmul(inputs, x)
         x = tf.reshape(x, [-1])
