@@ -28,7 +28,6 @@ class Disambiguation:
         self.labels   = {}
         self.features = {}
 
-        self.papers = []
         self.triplet_data = {}
         self.model = None
 
@@ -36,7 +35,9 @@ class Disambiguation:
         print("---------Transfrom------------")
 
         for paper_id, data in pub_data.items():
-            self.paper_pub[paper_id] = get_author_feature(paper_id, data)
+            author_features = get_author_feature(paper_id, data)
+            if author_features is not None:
+                self.paper_pub[paper_id] = author_features
             # author_features, author_name = get_author_features(paper_id, data)
             # for i, author_feature in enumerate(author_features):
             #    self.paper_pub["{}-{}".format(paper_id, author_name[i])] = author_feature
@@ -65,47 +66,53 @@ class Disambiguation:
     def embedding(self):
         print("---------embedding------------")
 
-        for unique_id, author_feature in self.paper_pub.items():
-            self.paper_emb[unique_id] = get_feature_emb(author_feature, self.paper_idf, self.model)
+        for paper_id, author_feature in self.paper_pub.items():
+            self.paper_emb[paper_id] = get_feature_emb(paper_id, author_feature, self.paper_idf, self.model)
 
     def prepare(self, pub_data):
         self.transform(pub_data)
         self.word2vec()
         self.embedding()
+    
+    def generate_triplet(self, author_data):
+        anchor_data = []
+        pos_data = []
+        neg_data = []
+        paper_ids = []
 
-    def global_data(self, author_data):
         for _, author in author_data.items():
             for _, papers in author.items():
                 for paper_id in papers:
-                    self.papers.append(paper_id)
+                    paper_ids.append(paper_id)
+
         with open("papers.json", 'w') as f:
-            json.dump(self.papers, f, indent='\t')
-    
-    def generate_triplet(self, author_data):
-        anchor_data = np.empty([0, EMB_DIM])
-        pos_data = np.empty([0, EMB_DIM])
-        neg_data = np.empty([0, EMB_DIM])
+            json.dump(paper_ids, f, indent='\t')
 
         for _, author in author_data.items():
             for _, papers in author.items():
                 for i, paper_id in enumerate(papers):
+                    if paper_id not in self.paper_emb:
+                        continue
                     sample_length = min(6, len(papers))
                     idxs = random.sample(range(len(papers)), sample_length)
                     for idx in idxs:
                         if idx == i:
                             continue
                         pos_paper = papers[idx]
-                        neg_paper = self.papers[random.randint(0, len(self.papers) - 1)]
-                        while neg_paper in papers:
-                            neg_paper = self.papers[random.randint(0, len(self.papers) - 1)]
+                        if pos_paper not in self.paper_emb:
+                            continue
 
-                        anchor_data = np.concatenate((anchor_data, self.paper_emb[paper_id]))
-                        pos_data = np.concatenate((pos_data, self.paper_emb[pos_paper]))
-                        neg_data = np.concatenate((neg_data, self.paper_emb[neg_paper]))
+                        neg_paper = paper_ids[random.randint(0, len(paper_ids) - 1)]
+                        while neg_paper in papers or neg_paper not in self.paper_emb:
+                            neg_paper = paper_ids[random.randint(0, len(paper_ids) - 1)]
 
-        self.triplet_data["anchor_input"] = anchor_data
-        self.triplet_data["pos_input"] = pos_data
-        self.triplet_data["neg_input"] = neg_data
+                        anchor_data.append(self.paper_emb[paper_id])
+                        pos_data.append(self.paper_emb[pos_paper])
+                        neg_data.append(self.paper_emb[neg_paper])
+
+        self.triplet_data["anchor_input"] = np.stack(anchor_data)
+        self.triplet_data["pos_input"] = np.stack(pos_data)
+        self.triplet_data["neg_input"] = np.stack(neg_data)
 
     def train_global_model(self, author_data):
         # Test
@@ -115,7 +122,6 @@ class Disambiguation:
         with open("author_features_pkl.model", 'rb') as f:
             self.paper_emb = pickle.load(f)
 
-        self.global_data(author_data)
         self.generate_triplet(author_data)
 
         self.triplet_model = GlobalTripletModel()
@@ -168,6 +174,9 @@ class Disambiguation:
             self.adj = sp.coo_matrix((np.ones(len(row_idx)), (np.array(row_idx), np.array(col_idx))),
                         shape=(len(paper_ids), len(paper_ids)), dtype=np.float32)
 
+    def train_local_model(self, raw_data):
+        self.generate_local(self, raw_data)
+
 
     def save(self, output_path):
         with open(output_path + "_pub.json", 'w') as f:
@@ -188,6 +197,7 @@ if __name__ == '__main__':
     train_row_data = json.load(open(train_row_data_path, 'r', encoding='utf-8'))
 
     model = Disambiguation()
-    model.prepare(train_pub_data)
-    model.save("author_features")
-    # model.train_global_model(train_row_data)
+    # model.prepare(train_pub_data)
+    # model.save("author_features")
+    model.train_global_model(train_row_data)
+    # model.train_local_model(train_row_data)

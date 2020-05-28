@@ -36,11 +36,10 @@ def transform_feature(key, value):
     return value
 
 def get_author_feature(paper_id, item):
-
     if len(item["authors"]) > 30:
         print(paper_id, len(item["authors"]))
     if len(item["authors"]) > 100:
-        return []
+        return
 
     name_feature = transform_feature("name", [format_name(k.get("name", "")) for k in item["authors"]])
     org_features = transform_feature("org", [format_name(k.get("org", "")) for k in item["authors"]])
@@ -57,7 +56,7 @@ def get_author_features(paper_id, item):
     if len(item["authors"]) > 30:
         print(paper_id, len(item["authors"]))
     if len(item["authors"]) > 100:
-        return author_features
+        return
 
     title_features = transform_feature("title", format_text(item["title"]))
     keywords_features = transform_feature("keywords", [format_name(k) for k in item.get("keywords", [])])
@@ -88,7 +87,7 @@ def get_author_features(paper_id, item):
         author_name.append(format_name(author.get("name", "")))
     return author_features, author_name
 
-def get_feature_emb(author_feature, idf, model):
+def get_feature_emb(paper_id, author_feature, idf, model):
     vectors = []
     sum_weight = 0
     for item in author_feature:
