@@ -1,0 +1,97 @@
+TensorFlow 2.0 Upgrade Script
+-----------------------------
+Converted 7 files
+Detected 0 issues that require attention
+--------------------------------------------------------------------------------
+================================================================================
+Detailed log follows:
+
+================================================================================
+================================================================================
+Input tree: 'gae'
+================================================================================
+--------------------------------------------------------------------------------
+Processing file 'gae\\initializations.py'
+ outputting to 'gae\\initializations.py'
+--------------------------------------------------------------------------------
+
+9:14: INFO: Renamed 'tf.random_uniform' to 'tf.random.uniform'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'gae\\input_data.py'
+ outputting to 'gae\\input_data.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'gae\\layers.py'
+ outputting to 'gae\\layers.py'
+--------------------------------------------------------------------------------
+
+4:8: INFO: Renamed 'tf.app.flags' to 'tf.compat.v1.app.flags'
+27:21: INFO: Renamed 'tf.random_uniform' to 'tf.random.uniform'
+29:14: INFO: Renamed 'tf.sparse_retain' to 'tf.sparse.retain'
+62:13: INFO: `name` passed to `name_scope`. Because you may be re-entering an existing scope, it is not safe to convert automatically,  the v2 name_scope does not support re-entering scopes by name.
+
+62:13: INFO: Renamed 'tf.name_scope' to 'tf.compat.v1.name_scope'
+71:13: INFO: Renamed 'tf.variable_scope' to 'tf.compat.v1.variable_scope'
+79:12: INFO: Changing keep_prob arg of tf.nn.dropout to rate, and recomputing value.
+
+81:12: INFO: Renamed 'tf.sparse_tensor_dense_matmul' to 'tf.sparse.sparse_dense_matmul'
+90:13: INFO: Renamed 'tf.variable_scope' to 'tf.compat.v1.variable_scope'
+101:12: INFO: Renamed 'tf.sparse_tensor_dense_matmul' to 'tf.sparse.sparse_dense_matmul'
+102:12: INFO: Renamed 'tf.sparse_tensor_dense_matmul' to 'tf.sparse.sparse_dense_matmul'
+115:17: INFO: Changing keep_prob arg of tf.nn.dropout to rate, and recomputing value.
+
+116:12: INFO: Added keywords to args of function 'tf.transpose'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'gae\\model.py'
+ outputting to 'gae\\model.py'
+--------------------------------------------------------------------------------
+
+4:8: INFO: Renamed 'tf.app.flags' to 'tf.compat.v1.app.flags'
+31:13: INFO: Renamed 'tf.variable_scope' to 'tf.compat.v1.variable_scope'
+33:20: INFO: Renamed 'tf.get_collection' to 'tf.compat.v1.get_collection'
+33:38: INFO: Renamed 'tf.GraphKeys' to 'tf.compat.v1.GraphKeys'
+112:31: INFO: Renamed 'tf.random_normal' to 'tf.random.normal'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'gae\\optimizer.py'
+ outputting to 'gae\\optimizer.py'
+--------------------------------------------------------------------------------
+
+3:8: INFO: Renamed 'tf.app.flags' to 'tf.compat.v1.app.flags'
+12:27: INFO: Added keywords to args of function 'tf.reduce_mean'
+12:42: INFO: Renamed keyword argument for tf.nn.weighted_cross_entropy_with_logits from targets to labels
+13:25: INFO: Renamed 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+20:24: INFO: Added keywords to args of function 'tf.reduce_mean'
+28:27: INFO: Added keywords to args of function 'tf.reduce_mean'
+28:42: INFO: Renamed keyword argument for tf.nn.weighted_cross_entropy_with_logits from targets to labels
+29:25: INFO: Renamed 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+33:38: INFO: Added keywords to args of function 'tf.reduce_mean'
+33:53: INFO: Added keywords to args of function 'tf.reduce_sum'
+42:24: INFO: Added keywords to args of function 'tf.reduce_mean'
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'gae\\preprocessing.py'
+ outputting to 'gae\\preprocessing.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Processing file 'gae\\__init__.py'
+ outputting to 'gae\\__init__.py'
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+
