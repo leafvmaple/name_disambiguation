@@ -26,7 +26,7 @@ tf.compat.v1.disable_eager_execution()
 flags = tf.compat.v1.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-flags.DEFINE_integer('epochs', 200, 'Number of epochs to train.')
+flags.DEFINE_integer('epochs', 20, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 32, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 16, 'Number of units in hidden layer 2.')
 flags.DEFINE_float('weight_decay', 0., 'Weight for L2 loss on embedding matrix.')
@@ -118,17 +118,14 @@ class GraphAutoEncoders:
             avg_cost = outs[1]
             avg_accuracy = outs[2]
 
-            print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(avg_cost),
-                "train_acc=", "{:.5f}".format(avg_accuracy),
-                "time=", "{:.5f}".format(time.time() - t))
+            # print("Epoch:", '%04d' % (epoch + 1), "train_loss=", "{:.5f}".format(avg_cost),
+            #     "train_acc=", "{:.5f}".format(avg_accuracy),
+            #     "time=", "{:.5f}".format(time.time() - t))
 
         emb = get_embs()
-        print(emb)
         n_clusters = len(set(labels))
         emb_norm = normalize_vectors(emb)
-        print(emb_norm)
         clusters_pred = clustering(emb_norm, num_clusters=n_clusters)
-        print(clusters_pred)
         prec, rec, f1 =  pairwise_precision_recall_f1(clusters_pred, labels)
         print('pairwise precision', '{:.5f}'.format(prec),
             'recall', '{:.5f}'.format(rec),

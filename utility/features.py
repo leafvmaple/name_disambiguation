@@ -90,11 +90,11 @@ def get_author_features(paper_id, item):
 def get_feature_emb(paper_id, author_feature, idf, model):
     vectors = []
     sum_weight = 0
-    for item in author_feature:
-        if item not in model.wv:
+    for feature_id in author_feature:
+        if feature_id not in model.wv:
             continue
-        weight = idf[item] if item in idf else 1
-        vectors.append(model.wv[item] * weight)
+        weight = idf[feature_id] if feature_id in idf else 1
+        vectors.append(model.wv[feature_id] * weight)
         sum_weight += weight
 
     return np.sum(vectors, axis=0) / sum_weight
