@@ -37,7 +37,6 @@ flags.DEFINE_string('dataset', 'cora', 'Dataset string.')
 flags.DEFINE_integer('features', 1, 'Whether to use features (1) or not (0).')
 
 model_str = FLAGS.model
-dataset_str = FLAGS.dataset
 
 class GraphAutoEncoders:
     def train(self, adj, features, labels):
@@ -54,7 +53,6 @@ class GraphAutoEncoders:
         num_nodes = adj.shape[0]
         input_feature_dim = features.shape[1]
         features = normalize_vectors(features)
-        features_nonzero = features.shape[1]
 
         # Define placeholders
         placeholders = {
