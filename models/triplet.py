@@ -10,13 +10,15 @@ from utility.triplet import l2Norm, euclidean_distance, triplet_loss, accuracy
 from utility.model import predict
 
 class GlobalTripletModel:
-    def __init__(self):
+    def __init__(self, dimension=100):
         self.model = None
+        self.dimension = dimension
+        self.create()
 
-    def create(self, size):
-        emb_anchor = Input(shape=(size, ), name='anchor_input')
-        emb_pos = Input(shape=(size, ), name='pos_input')
-        emb_neg = Input(shape=(size, ), name='neg_input')
+    def create(self):
+        emb_anchor = Input(shape=(self.dimension, ), name='anchor_input')
+        emb_pos = Input(shape=(self.dimension, ), name='pos_input')
+        emb_neg = Input(shape=(self.dimension, ), name='neg_input')
 
         # shared layers
         layer1 = Dense(128, activation='relu', name='first_emb_layer')
@@ -47,7 +49,7 @@ class GlobalTripletModel:
 
         # inter_layer = Model(inputs=self.model.get_input_at(0), outputs=self.model.get_layer('norm_layer').get_output_at(0))
 
-    def train(self, data):
+    def fit(self, data):
         triplets_count = data["anchor_input"].shape[0]
         self.model.fit(data, np.ones((triplets_count, 2)), batch_size=64, epochs=5, shuffle=True, validation_split=0.2)
 
@@ -104,5 +106,17 @@ class GlobalTripletModel:
         print('test AUC after', auc)
         return auc
 
+    def save(self, path):
+        with open(path + ".json", 'w') as f:
+            f.write(self.model.to_json())
+            f.close()
+
+        self.model.save_weights(path + "-triplets-{}.h5".format(self.dimension))
+
+    def load(self, path):
+        with open(path + ".json", 'r') as f:
+            self.model = model_from_json(f.read())
+            f.close()
+            self.model.load_weights(path + "-triplets-{}.h5".format(self.dimension))
 
 

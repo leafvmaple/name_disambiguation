@@ -12,8 +12,8 @@ from os.path import join, abspath, dirname
 from keras.models import Model, model_from_json
 from gensim.models import Word2Vec
 from collections import defaultdict
-from triplet_model import GlobalTripletModel
-from gae_model import GraphAutoEncoders
+from models.triplet import GlobalTripletModel
+from models.vgae import GraphAutoEncoders
 from utility.features import get_author_feature, get_author_features, get_feature_emb
 from utility.model import discretization, cal_f1, clustering, pairwise_precision_recall_f1
 from gae.preprocessing import normalize_vectors
@@ -173,9 +173,8 @@ class Disambiguation:
         _, _, paper_embs = self.load_embedding()
         triplet_data = self.__generate_triplet(paper_embs)
 
-        triplet_model = GlobalTripletModel()
-        triplet_model.create(EMB_DIM)
-        triplet_model.train(triplet_data)
+        triplet_model = GlobalTripletModel(EMB_DIM)
+        triplet_model.fit(triplet_data)
 
         self.__global_params(paper_embs, triplet_model)
 
@@ -263,12 +262,7 @@ class Disambiguation:
 
     def train_global(self):
         triplet_model = self.generate_global()
-
-        with open(join(PROJ_DIR, "temp", "global_model.json"), 'w') as f:
-            f.write(triplet_model.model.to_json())
-            f.close()
-
-        triplet_model.model.save_weights(join(PROJ_DIR, "temp", "global_model-triplets-{}.h5".format(EMB_DIM)))
+        triplet_model.save(join(PROJ_DIR, "temp", "global_model"))
 
     def train_local(self, raw_data):
         self.load_global()
@@ -324,12 +318,8 @@ class Disambiguation:
         with open(join(PROJ_DIR, "temp", "prepare_embs.pkl"), 'rb') as f:
             self.paper_embs = pickle.load(f)
 
-        self.triplet_model = GlobalTripletModel()
-
-        with open(join(PROJ_DIR, "temp", "global_model.json"), 'r') as f:
-            self.triplet_model.model = model_from_json(f.read())
-            f.close()
-            self.triplet_model.model.load_weights(join(PROJ_DIR, "temp", "global_model-triplets-{}.h5".format(EMB_DIM)))
+        self.triplet_model = GlobalTripletModel(EMB_DIM)
+        self.triplet_model.load(join(PROJ_DIR, "temp", "global_model"))
 
         self.__global_params(paper_embs, triplet_model)
 
@@ -363,10 +353,6 @@ class Disambiguation:
 
         cnt = len(author_data)
         return prec_cnt / cnt, rec_cnt / cnt, f1_cnt / cnt
-
-        #if self.triplet_model is not None:
-        #    embs = self.triplet_model.get_inter(embs)
-        #    return self.predict(embs, labels, cluster_size)
 
 
 if __name__ == '__main__':
