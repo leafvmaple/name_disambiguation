@@ -1,24 +1,26 @@
 from os.path import join
 import numpy as np
-import keras.backend as K
 import tensorflow as tf
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, LSTM, Bidirectional
+import tensorflow.keras.backend as K
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, LSTM, Bidirectional
 
 class ClusterModel:
     def __init__(self, dimension=64):
         self.dimension = dimension
 
-        self.model = Sequential()
-        self.model.add(Bidirectional(LSTM(64), input_shape=(300, 100)))
-        self.model.add(Dropout(0.5))
-        self.model.add(Dense(1))
+        self.model = Sequential([
+            Bidirectional(LSTM(64), input_shape=(300, 100)),
+            Dropout(0.5),
+            Dense(1)
+        ])
 
         self.model.compile(loss="msle", optimizer='rmsprop', metrics=[self.mean_squared_error, "accuracy", "msle", self.mean_log_squared_error])
 
     def fit(self, author_data, feature_embs):
         self.author_data = author_data
         self.feature_embs = feature_embs
+        self.train(author_data)
 
     def mean_squared_error(self, y_true, y_pred):
         return K.sqrt(K.mean(K.square(y_pred - y_true), axis=-1))
@@ -44,6 +46,8 @@ class ClusterModel:
             sampled_paper_id = [sampled[v] for v in np.random.choice(len(sampled), k, replace=True)]
 
             for paper_id in sampled_paper_id:
+                while paper_id not in self.feature_embs:
+                    paper_id = sampled[np.random.randint(len(sampled))]
                 embs.append(self.feature_embs[paper_id])
 
             sampled_embs.append(np.stack(embs))
@@ -67,8 +71,12 @@ class ClusterModel:
             for _, papers in author.items():  # one person
                 for paper_id in papers:
                     sampled.append(paper_id)
+            if (len(sampled) == 0):
+                continue
             sampled_points = [sampled[v] for v in np.random.choice(len(sampled), k, replace=True)]
             for paper_id in sampled_points:
+                while paper_id not in self.feature_embs:
+                    paper_id = sampled[np.random.randint(len(sampled))]
                 embs.append(self.feature_embs[paper_id])
             X.append(np.stack(embs))
             y.append(num_clusters)
@@ -76,21 +84,16 @@ class ClusterModel:
         return names, np.stack(X), np.stack(y)
 
 
-    def train(self, k=300, seed=1106, vailidation_data=None):
+    def train(self, vailidation_data, k=300, seed=1106):
         np.random.seed(seed)
         clusters = []
         for domain in self.author_data.values():
             for cluster in domain.values():
                 clusters.append(cluster)
 
-        _, test_X, test_y = self.gen_test(k, vailidation_data)
-        self.model.fit_generator(self.gen_train(clusters, k=300, batch_size=1000), steps_per_epoch=100, epochs=1000, validation_data=(test_X, test_y))
+        _, test_X, test_y = self.gen_test(vailidation_data, k)
+        self.model.fit_generator(self.gen_train(clusters, k=200, batch_size=1000), steps_per_epoch=100, epochs=10, validation_data=(test_X, test_y))
 
-    def predict(self, predict_data, path):
+    def predict(self, predict_data, path=None):
         pred_names, pred_X, pred_y = self.gen_test(predict_data)
-        pred_res = self.model.predict(pred_X)
-
-        f = open(path, 'w')
-        for i, name in enumerate(pred_names):
-            f.write('{}\t{}\t{}\n'.format(name, pred_y[i], pred_res[i][0]))
-        f.close()
+        return self.model.predict(pred_X), pred_names, pred_X, pred_y

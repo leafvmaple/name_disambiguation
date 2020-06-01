@@ -12,8 +12,11 @@ from os.path import join, abspath, dirname
 from keras.models import Model, model_from_json
 from gensim.models import Word2Vec
 from collections import defaultdict
+
 from models.triplet import GlobalTripletModel
 from models.vgae import GraphAutoEncoders
+from models.cluster import ClusterModel
+
 from utility.features import get_author_feature, get_author_features, get_feature_emb
 from utility.model import discretization, cal_f1, clustering, pairwise_precision_recall_f1
 from gae.preprocessing import normalize_vectors
@@ -328,6 +331,17 @@ class Disambiguation:
         clusters_pred = clustering(embs_norm, num_clusters=cluster_size)
         return  pairwise_precision_recall_f1(clusters_pred, labels)
 
+    def cluster(self, report_path=None):
+        model = ClusterModel()
+        model.fit(self.author_data, self.cur_params)
+        cluster_size, pred_names, pred_X, pred_y = model.predict(self.author_data)
+
+        if report_path:
+            with open(join(PROJ_DIR, "report", report_path), "w") as f:
+                for i, name in enumerate(pred_names):
+                    f.write('{}\t{}\t{}\n'.format(name, pred_y[i], cluster_size[i][0]))
+                f.close()
+
     def score(self, author_data, labels, cluster_size, report_path=None):
         prec_cnt, rec_cnt, f1_cnt = 0, 0, 0
 
@@ -364,8 +378,14 @@ if __name__ == '__main__':
     test_label_data = json.load(open(test_label_data_path, 'r', encoding='utf-8'))
     test_size_data = json.load(open(test_size_data_path, 'r', encoding='utf-8'))
 
+
     model = Disambiguation()
     model.fit(train_pub_data, train_row_data)
+
+    model.load_embedding()
+    model.cluster("embedding_cluster.csv")
+
+'''
 
     model.train_embedding()
     prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.txt".format(time.time()))
@@ -379,3 +399,4 @@ if __name__ == '__main__':
     #model.save_global("global")
 
     #model.train_local_model(train_row_data)
+'''
