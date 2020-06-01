@@ -32,7 +32,7 @@ def transform_feature(key, value):
         value = value.split()
 
     for i, k in enumerate(value):
-        value[i] = "%s:%s" % (key.upper(), k)
+        value[i] = "__%s__%s" % (key.upper(), k)
     return value
 
 def get_author_feature(paper_id, item):
