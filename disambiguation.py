@@ -313,18 +313,15 @@ class Disambiguation:
         return paper_feats, paper_idf, paper_embs
 
     def load_global(self):
-        self.gae_model = GraphAutoEncoders()
+        triplet_model = GlobalTripletModel(EMB_DIM)
+        triplet_model.load(join(PROJ_DIR, "temp", "global_model"))
 
-        with open(join(PROJ_DIR, "temp" ,"prepare_pub.json"), 'r') as f:
-            self.paper_feats = json.load(f)
-
-        with open(join(PROJ_DIR, "temp", "prepare_embs.pkl"), 'rb') as f:
-            self.paper_embs = pickle.load(f)
-
-        self.triplet_model = GlobalTripletModel(EMB_DIM)
-        self.triplet_model.load(join(PROJ_DIR, "temp", "global_model"))
+        with open(join(PROJ_DIR, "temp", "embedding_paper_embs.pkl"), 'rb') as f:
+            paper_embs = pickle.load(f)
 
         self.__global_params(paper_embs, triplet_model)
+
+        return triplet_model, triplet_model
 
     def __get_precision(self, embs, labels, cluster_size):
         embs_norm = normalize_vectors(embs)
@@ -332,7 +329,7 @@ class Disambiguation:
         return  pairwise_precision_recall_f1(clusters_pred, labels)
 
     def cluster(self, report_path=None):
-        model = ClusterModel()
+        model = ClusterModel(dimension=self.cur_size)
         model.fit(self.author_data, self.cur_params)
         cluster_size, pred_names, pred_X, pred_y = model.predict(self.author_data)
 
@@ -382,21 +379,19 @@ if __name__ == '__main__':
     model = Disambiguation()
     model.fit(train_pub_data, train_row_data)
 
-    model.load_embedding()
-    model.cluster("embedding_cluster.csv")
+    # model.train_embedding()
+    # model.load_embedding()
+    # model.cluster("embedding_cluster.csv")
+    # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.csv".format(time.time()))
+    # print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
-'''
+    # model.train_global()
+    model.load_global()
+    model.cluster("global_cluster.csv")
+    # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "global_{:.0f}.csv".format(time.time()))
+    # print("Global precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
-    model.train_embedding()
-    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.txt".format(time.time()))
-    print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
+    # model.train_global_model(train_row_data)
+    # model.save_global("global")
 
-    model.train_global()
-    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "global_{:.0f}.txt".format(time.time()))
-    print("Global precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
-
-    #model.train_global_model(train_row_data)
-    #model.save_global("global")
-
-    #model.train_local_model(train_row_data)
-'''
+    # model.train_local_model(train_row_data)
