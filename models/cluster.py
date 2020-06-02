@@ -20,7 +20,7 @@ class ClusterModel:
 
     def fit(self, author_data, feature_embs):
         self.feature_embs = feature_embs
-        self.train(author_data, self.k)
+        self.train(author_data)
 
     def mean_squared_error(self, y_true, y_pred):
         return K.sqrt(K.mean(K.square(y_pred - y_true), axis=-1))
@@ -30,7 +30,7 @@ class ClusterModel:
         second_log = K.log(K.clip(y_true, K.epsilon(), np.inf) + 1.)
         return K.sqrt(K.mean(K.square(first_log - second_log), axis=-1))
 
-    def sampler(self, clusters, k=300, batch_size=10, min_range=1, max_range=300):
+    def sampler(self, clusters, batch_size=10, min_range=1, max_range=300):
         sampled_sizes = []
         sampled_embs = []
 
@@ -48,7 +48,7 @@ class ClusterModel:
             if len(sampled) == 0:
                 continue
     
-            sampled_paper_id = [sampled[v] for v in np.random.choice(len(sampled), k, replace=True)]
+            sampled_paper_id = [sampled[v] for v in np.random.choice(len(sampled), self.k, replace=True)]
             for paper_id in sampled_paper_id:
                 embs.append(self.feature_embs[paper_id])
 
@@ -57,11 +57,11 @@ class ClusterModel:
         
         return np.stack(sampled_embs), np.stack(sampled_sizes)
 
-    def generate_train(self, clusters, k=300, batch_size=1000):
+    def generate_train(self, clusters, batch_size=1000):
         while True:
-            yield self.sampler(clusters, k, batch_size)
+            yield self.sampler(clusters, batch_size)
 
-    def generate_valid(self, author_data, k=300):
+    def generate_valid(self, author_data):
         X = []
         y = []
         for _, author in author_data.items():
@@ -76,7 +76,7 @@ class ClusterModel:
             if len(sampled) == 0:
                 continue
 
-            sampled_points = [sampled[v] for v in np.random.choice(len(sampled), k, replace=True)]
+            sampled_points = [sampled[v] for v in np.random.choice(len(sampled), self.k, replace=True)]
             for paper_id in sampled_points:
                 embs.append(self.feature_embs[paper_id])
 
@@ -85,8 +85,27 @@ class ClusterModel:
 
         return np.stack(X), np.stack(y)
 
+    def generate_predict(self, author_data, feature_embs):
+        X = []
+        for _, papers in author_data.items():
+            sampled = []
+            embs = []
+            for paper_id in papers:
+                sampled.append(paper_id)
 
-    def train(self, author_data, k=300, seed=1106):
+            sampled = [v for v in sampled if v in self.feature_embs]
+            if len(sampled) == 0:
+                continue
+
+            sampled_points = [sampled[v] for v in np.random.choice(len(sampled), self.k, replace=True)]
+            for paper_id in sampled_points:
+                embs.append(self.feature_embs[paper_id])
+
+            X.append(np.stack(embs))
+
+        return np.stack(X)
+
+    def train(self, author_data, seed=1106):
         np.random.seed(seed)
         clusters = []
         for domain in author_data.values():
@@ -94,15 +113,8 @@ class ClusterModel:
                 clusters.append(cluster)
 
         valid_X, valid_y = self.generate_valid(author_data)
-        self.model.fit_generator(self.generate_train(clusters, k, batch_size=1000), steps_per_epoch=100, epochs=1, validation_data=(valid_X, valid_y))
+        self.model.fit_generator(self.generate_train(clusters, batch_size=1000), steps_per_epoch=100, epochs=1, validation_data=(valid_X, valid_y))
 
-    def predict(self, X, feature_embs):
-        emb = []
-        for paper_id in X:
-            if paper_id in feature_embs:
-                emb.append(feature_embs[paper_id])
-            else:
-                emb.append(np.zeros(100))
-        if len(emb) == 0:
-            return
-        return self.model.predict(np.stack(emb)[np.newaxis,:,:])
+    def predict(self, author_data, feature_embs):
+        pred_X = self.generate_predict(author_data, feature_embs)
+        return self.model.predict(pred_X)

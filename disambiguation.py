@@ -31,8 +31,8 @@ PROJ_DIR = abspath(dirname(__file__))
 train_pub_data_path = 'data/train/train_pub_fix.json'
 train_row_data_path = 'data/train/train_author_fix.json'
 
-sna_pub_data_path = 'data/sna_data/sna_valid_pub.json'
-sna_row_data_path = 'data/sna_data/sna_valid_author_raw.json'
+sna_pub_data_path = 'data/sna_data/sna_valid_pub_fix.json'
+sna_row_data_path = 'data/sna_data/sna_valid_author_raw_fix.json'
 
 test_pub_data_path = "data/test/test_pub.json"
 test_author_data_path = "data/test/test_author_fix.json"
@@ -333,14 +333,10 @@ class Disambiguation:
         return triplet_model
 
     def cluster(self, X, paper_embs):
-        model = ClusterModel(dimension=EMB_DIM)
+        model = ClusterModel(dimension=EMB_DIM, k=600)
         model.fit(self.author_data, self.paper_embs)
-        cluster_size = []
-        for _, papers in X.items():
-            pred_y = model.predict(papers, paper_embs)
-            cluster_size.append(pred_y[0] if pred_y else 0)
-        
-        return cluster_size
+
+        return model.predict(X, paper_embs)
 
     def predict(self, paper_ids, cluster_size):
         params = []
@@ -388,14 +384,22 @@ if __name__ == '__main__':
     test_label_data = json.load(open(test_label_data_path, 'r', encoding='utf-8'))
     test_size_data = json.load(open(test_size_data_path, 'r', encoding='utf-8'))
 
+    test_pub_data = json.load(open(sna_pub_data_path, 'r', encoding='utf-8'))
+    test_row_data = json.load(open(sna_row_data_path, 'r', encoding='utf-8'))
+    # test_author_data = json.load(open(test_author_data_path, 'r', encoding='utf-8'))
+    # test_label_data = json.load(open(test_label_data_path, 'r', encoding='utf-8'))
+
 
     model = Disambiguation()
     model.fit(train_pub_data, train_row_data)
 
     # model.train_embedding()
     model.load_embedding()
-    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.csv".format(time.time()))
-    print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
+    clusters = model.cluster(test_author_data, model.paper_embs)
+    for size in clusters:
+        print(size)
+    # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.csv".format(time.time()))
+    # print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
     # model.train_global()
     # model.load_global()
