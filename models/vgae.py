@@ -67,7 +67,7 @@ class GraphAutoEncoders:
         elif self.model_type == 'gcn_vae':
             self.model = GCNModelVAE(self.placeholders, input_feature_dim, num_nodes)
         pos_weight = float(adj.shape[0] * adj.shape[0] - adj.sum()) / adj.sum()  # negative edges/pos edges
-        print('positive edge weight', pos_weight)
+        # print('positive edge weight', pos_weight)
         norm = adj.shape[0] * adj.shape[0] / float((adj.shape[0] * adj.shape[0] - adj.nnz) * 2)
 
         # Optimizer
@@ -126,6 +126,6 @@ class GraphAutoEncoders:
         clusters_pred = self.predict(labels)
         prec, rec, f1 = pairwise_precision_recall_f1(clusters_pred, labels)
 
-        print('pairwise precision', '{:.5f}'.format(prec), 'recall', '{:.5f}'.format(rec), 'f1', '{:.5f}'.format(f1))
+        # print('pairwise precision', '{:.5f}'.format(prec), 'recall', '{:.5f}'.format(rec), 'f1', '{:.5f}'.format(f1))
         return prec, rec, f1
 

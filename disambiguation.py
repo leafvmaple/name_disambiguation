@@ -211,6 +211,12 @@ class Disambiguation:
 
         self.cur_size = 64
 
+    def __local_params(self, paper_embs, local_emb):
+        for paper_id, emb in paper_embs.items():
+            self.cur_params[paper_id] = local_emb[paper_id] if paper_id in local_emb else emb
+
+        self.cur_size = 100
+
     def generate_embedding(self):
         print("---------embedding------------")
         paper_embs = {}
@@ -237,13 +243,15 @@ class Disambiguation:
         return triplet_model
 
     def generate_local(self):
-        paper_feats, paper_idf, _ = self.load_embedding()
+        paper_feats, paper_idf, paper_embs = self.load_embedding()
         self.load_global()
 
         gae_model = GraphAutoEncoders()
 
         wf = codecs.open(join(PROJ_DIR, 'local_clustering_results.csv'), 'w', encoding='utf-8')
         wf.write('name,n_pubs,n_clusters,precision,recall,f1\n')
+
+        local_embs = {}
 
         for name, author in self.author_data.items():
             adj, features, labels, ids = self.__generate_adjacency(paper_idf, paper_feats, author)
@@ -257,13 +265,15 @@ class Disambiguation:
             wf.flush()
 
             emb = gae_model.get_embs()
-            for i, paper_id in enumerate(ids):
-                self.cur_params[paper_id] = emb[i]
 
-        self.cur_size = 100
+            for i, paper_id in enumerate(ids):
+                local_embs[paper_id] = emb[i]
+
         wf.close()
 
-        return gae_model
+        self.__global_params(paper_embs, local_embs)
+
+        return local_embs
 
     def fit(self, pub_data, author_data):
         self.pub_data = pub_data
@@ -289,7 +299,10 @@ class Disambiguation:
         triplet_model.save(join(PROJ_DIR, "temp", "global_model"))
 
     def train_local(self):
-        gae_model = self.generate_local()
+        local_embs = self.generate_local()
+
+        with open(join(PROJ_DIR, "temp", "local_paper_embs.pkl"), 'wb') as f:
+            pickle.dump(local_embs, f)
 
     def load_embedding(self):
         with open(join(PROJ_DIR, "temp", "embedding_paper_feats.json"), 'r') as f:
@@ -316,11 +329,6 @@ class Disambiguation:
 
         return triplet_model
 
-    def __get_precision(self, embs, labels, cluster_size):
-        embs_norm = normalize_vectors(embs)
-        clusters_pred = clustering(embs_norm, num_clusters=cluster_size)
-        return  pairwise_precision_recall_f1(clusters_pred, labels)
-
     def cluster(self, report_path=None):
         model = ClusterModel(dimension=self.cur_size)
         model.fit(self.author_data, self.cur_params)
@@ -332,6 +340,17 @@ class Disambiguation:
                     f.write('{}\t{}\t{}\n'.format(name, pred_y[i], cluster_size[i][0]))
                 f.close()
 
+    def predict(self, paper_ids, cluster_size):
+        params = []
+        for paper_id in paper_ids:
+            param = self.cur_params[paper_id] if paper_id in self.cur_params else np.zeros(self.cur_size)
+            params.append(param)
+
+        params = np.stack(params)
+
+        embs_norm = normalize_vectors(params)
+        return clustering(embs_norm, num_clusters=cluster_size)
+
     def score(self, author_data, labels, cluster_size, report_path=None):
         prec_cnt, rec_cnt, f1_cnt = 0, 0, 0
 
@@ -339,13 +358,8 @@ class Disambiguation:
             f = open(join(PROJ_DIR, "report", report_path), "w")
 
         for name, paper_ids in author_data.items():
-            params = []
-            for paper_id in paper_ids:
-                params.append(self.cur_params[paper_id] if paper_id in self.cur_params else np.zeros(self.cur_size))
-
-            params = np.stack(params)
-
-            prec, rec, f1 = self.__get_precision(params, labels[name], cluster_size[name])
+            clusters_pred = self.predict(paper_ids, cluster_size[name])
+            prec, rec, f1 = pairwise_precision_recall_f1(clusters_pred, labels[name])
 
             f.write("{} precision {:.5f} recall {:.5f} f1 {:.5f}\n". format(name, prec, rec, f1))
 
@@ -373,10 +387,10 @@ if __name__ == '__main__':
     model.fit(train_pub_data, train_row_data)
 
     # model.train_embedding()
-    # model.load_embedding()
+    model.load_embedding()
     # model.cluster("embedding_cluster.csv")
-    # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.csv".format(time.time()))
-    # print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
+    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.csv".format(time.time()))
+    print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
     # model.train_global()
     model.load_global()
@@ -384,8 +398,8 @@ if __name__ == '__main__':
     prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "global_{:.0f}.csv".format(time.time()))
     print("Global precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
-    model.train_local()
-    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "local_{:.0f}.csv".format(time.time()))
-    print("Local precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
+    # model.train_local()
+    # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "local_{:.0f}.csv".format(time.time()))
+    # print("Local precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
     # model.train_local_model(train_row_data)
