@@ -133,6 +133,60 @@ class Disambiguation:
 
         return triplet_data
 
+    def __generate_adjacency(self, paper_idf, paper_feats, author):
+        features = []
+        labels = []
+        ids = []
+
+        embs = []
+        paper_ids = []
+        author_ids = []
+        paper_data = {}
+        for author_id, papers in author.items():
+            if len(papers) < 5:
+                continue
+            for paper_id in papers:
+                if paper_id not in self.cur_params:
+                    continue
+                embs.append(self.cur_params[paper_id])
+                paper_ids.append(paper_id)
+                author_ids.append(author_id)
+
+        if len(embs) == 0:
+            return None, None, None, None
+
+        for i, emb in enumerate(embs):
+            paper_data[paper_ids[i]] = {"author": author_ids[i], "paper": paper_ids[i], "emb": emb}
+
+        paper_data = [v for k, v in paper_data.items()]
+        random.shuffle(paper_data)
+
+        rows = []
+        cols = []
+
+        for i, data in enumerate(paper_data):
+            features.append(data["emb"])
+            labels.append(data["author"])
+            ids.append(data["paper"])
+
+            author_feature1 = set(paper_feats[data["paper"]])
+
+            for j in range(i + 1, len(paper_data)):
+                data2 = paper_data[j]
+                author_feature2 = set(paper_feats[data2["paper"]])
+                common_features = author_feature1.intersection(author_feature2)
+                idf_sum = 0
+                for feature in common_features:
+                    idf_sum += paper_idf[feature] if feature in paper_idf else IDF_THRESHOLD
+                if idf_sum >= IDF_THRESHOLD:
+                    rows.append(i)
+                    cols.append(j)
+
+        adj = sp.coo_matrix((np.ones(len(rows)), (np.array(rows), np.array(cols))), shape=(len(paper_data), len(paper_data)), dtype=np.float32)
+        adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+
+        return adj, np.array(features), labels, ids
+
     def __embedding_params(self, paper_embs):
         self.cur_params = paper_embs
         self.cur_size = 100
@@ -142,8 +196,6 @@ class Disambiguation:
         paper_ids = []
         for _, author in self.author_data.items():
             for _, papers in author.items():
-                if len(papers) < 5:
-                    continue
                 for paper_id in papers:
                     if paper_id not in paper_embs:
                         continue
@@ -156,6 +208,7 @@ class Disambiguation:
         self.cur_params = {}
         for i, emb in enumerate(embs):
             self.cur_params[paper_ids[i]] = emb
+
         self.cur_size = 64
 
     def generate_embedding(self):
@@ -183,66 +236,34 @@ class Disambiguation:
 
         return triplet_model
 
-    def generate_local(self, name, author): # Test Data?
-        features = []
-        labels = []
+    def generate_local(self):
+        paper_feats, paper_idf, _ = self.load_embedding()
+        self.load_global()
 
-        embs = []
-        paper_ids = []
-        author_ids = []
-        paper_data = {}
-        for author_id, papers in author.items():
-            if len(papers) < 5:
+        gae_model = GraphAutoEncoders()
+
+        wf = codecs.open(join(PROJ_DIR, 'local_clustering_results.csv'), 'w', encoding='utf-8')
+        wf.write('name,n_pubs,n_clusters,precision,recall,f1\n')
+
+        for name, author in self.author_data.items():
+            adj, features, labels, ids = self.__generate_adjacency(paper_idf, paper_feats, author)
+            if adj is None:
                 continue
-            for paper_id in papers:
-                if paper_id not in self.paper_embs:
-                    continue
-                embs.append(self.paper_embs[paper_id])
-                paper_ids.append(paper_id)
-                author_ids.append(author_id)
+            print('Dataset {} has {} nodes, {} features.'.format(name, adj.shape[0], features.shape[1]))
 
-        if len(embs) == 0:
-            return
+            gae_model.fit(adj, features, labels)
+            prec, rec, f1 = gae_model.score(labels)
+            wf.write('{},{:.5f},{:.5f},{:.5f}\n'.format(name, prec, rec, f1))
+            wf.flush()
 
-        embs = np.stack(embs)
-        embs = self.triplet_model.get_inter(embs)
+            emb = gae_model.get_embs()
+            for i, paper_id in enumerate(ids):
+                self.cur_params[paper_id] = emb[i]
 
-        for i, emb in enumerate(embs):
-            paper_data[paper_ids[i]] = {"author": author_ids[i], "paper": paper_ids[i], "emb": emb}
-            self.cur_params[paper_ids[i]] = emb
+        self.cur_size = 100
+        wf.close()
 
-        paper_data = [v for k, v in paper_data.items()]
-        random.shuffle(paper_data)
-
-        row_idx = []
-        col_idx = []
-
-        for i, data in enumerate(paper_data):
-            features.append(data["emb"])
-            labels.append(data["author"])
-
-            author_feature1 = set(self.paper_feats[data["paper"]])
-
-            for j in range(i + 1, len(paper_data)):
-                data2 = paper_data[j]
-                author_feature2 = set(self.paper_feats[data2["paper"]])
-                common_features = author_feature1.intersection(author_feature2)
-                idf_sum = 0
-                for feature in common_features:
-                    idf_sum += self.paper_idf[feature] if feature in self.paper_idf else IDF_THRESHOLD
-                if idf_sum >= IDF_THRESHOLD:
-                    row_idx.append(i)
-                    col_idx.append(j)
-
-        adj = sp.coo_matrix((np.ones(len(row_idx)), (np.array(row_idx), np.array(col_idx))),
-                    shape=(len(paper_data), len(paper_data)), dtype=np.float32)
-
-        features = np.array(features)
-
-        adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
-        print('Dataset {} has {} nodes, {} edges, {} features.'.format(name, adj.shape[0], len(row_idx), features.shape[1]))
-
-        return adj, np.array(features), labels
+        return gae_model
 
     def fit(self, pub_data, author_data):
         self.pub_data = pub_data
@@ -267,36 +288,8 @@ class Disambiguation:
         triplet_model = self.generate_global()
         triplet_model.save(join(PROJ_DIR, "temp", "global_model"))
 
-    def train_local(self, raw_data):
-        self.load_global()
-
-        wf = codecs.open(join(PROJ_DIR, 'local_clustering_results.csv'), 'w', encoding='utf-8')
-        wf.write('name,n_pubs,n_clusters,precision,recall,f1\n')
-        metrics = np.zeros(3)
-
-        cnt = 0
-
-        for name, author in raw_data.items():
-            adj, features, labels = self.generate_local(name, author)
-            if adj is None:
-                continue
-            cur_metric, num_nodes, n_clusters = self.gae_model.train(adj, features, labels)
-            wf.write('{0},{1},{2},{3:.5f},{4:.5f},{5:.5f}\n'.format(
-                name, num_nodes, n_clusters, cur_metric[0], cur_metric[1], cur_metric[2]))
-            wf.flush()
-            for i, m in enumerate(cur_metric):
-                metrics[i] += m
-            cnt += 1
-            macro_prec = metrics[0] / cnt
-            macro_rec = metrics[1] / cnt
-            macro_f1 = cal_f1(macro_prec, macro_rec)
-            print('average until now', [macro_prec, macro_rec, macro_f1])
-        macro_prec = metrics[0] / cnt
-        macro_rec = metrics[1] / cnt
-        macro_f1 = cal_f1(macro_prec, macro_rec)
-        wf.write('average,,,{0:.5f},{1:.5f},{2:.5f}\n'.format(
-            macro_prec, macro_rec, macro_f1))
-        wf.close()
+    def train_local(self):
+        gae_model = self.generate_local()
 
     def load_embedding(self):
         with open(join(PROJ_DIR, "temp", "embedding_paper_feats.json"), 'r') as f:
@@ -321,7 +314,7 @@ class Disambiguation:
 
         self.__global_params(paper_embs, triplet_model)
 
-        return triplet_model, triplet_model
+        return triplet_model
 
     def __get_precision(self, embs, labels, cluster_size):
         embs_norm = normalize_vectors(embs)
@@ -387,11 +380,12 @@ if __name__ == '__main__':
 
     # model.train_global()
     model.load_global()
-    model.cluster("global_cluster.csv")
-    # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "global_{:.0f}.csv".format(time.time()))
-    # print("Global precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
+    # model.cluster("global_cluster.csv")
+    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "global_{:.0f}.csv".format(time.time()))
+    print("Global precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
-    # model.train_global_model(train_row_data)
-    # model.save_global("global")
+    model.train_local()
+    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "local_{:.0f}.csv".format(time.time()))
+    print("Local precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
     # model.train_local_model(train_row_data)

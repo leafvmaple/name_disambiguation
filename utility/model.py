@@ -50,4 +50,4 @@ def pairwise_precision_recall_f1(preds, truths):
     return precision, recall, f1
 
 def cal_f1(prec, rec):
-    return 2*prec*rec/(prec+rec)
+    return 2 * prec * rec / (prec + rec)
