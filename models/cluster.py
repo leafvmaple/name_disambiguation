@@ -50,7 +50,6 @@ class ClusterModel:
                 continue
     
             sampled_paper_id = [sampled[v] for v in np.random.choice(len(sampled), k, replace=True)]
-
             for paper_id in sampled_paper_id:
                 embs.append(self.feature_embs[paper_id])
 
@@ -81,8 +80,6 @@ class ClusterModel:
 
             sampled_points = [sampled[v] for v in np.random.choice(len(sampled), k, replace=True)]
             for paper_id in sampled_points:
-                while paper_id not in self.feature_embs:
-                    paper_id = sampled[np.random.randint(len(sampled))]
                 embs.append(self.feature_embs[paper_id])
 
             names.append(name)
@@ -101,7 +98,7 @@ class ClusterModel:
                 clusters.append(cluster)
 
         _, test_X, test_y = self.gen_test(vailidation_data, k)
-        self.model.fit_generator(self.gen_train(clusters, k, batch_size=1000), steps_per_epoch=100, epochs=10, validation_data=(test_X, test_y))
+        self.model.fit_generator(self.gen_train(clusters, k, batch_size=1000), steps_per_epoch=100, epochs=300, validation_data=(test_X, test_y))
 
     def predict(self, predict_data, path=None):
         pred_names, pred_X, pred_y = self.gen_test(predict_data)
