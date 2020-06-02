@@ -19,7 +19,6 @@ class ClusterModel:
         self.model.compile(loss="msle", optimizer='rmsprop', metrics=[self.mean_squared_error, "accuracy", "msle", self.mean_log_squared_error])
 
     def fit(self, author_data, feature_embs):
-        self.author_data = author_data
         self.feature_embs = feature_embs
         self.train(author_data, self.k)
 
@@ -58,15 +57,14 @@ class ClusterModel:
         
         return np.stack(sampled_embs), np.stack(sampled_sizes)
 
-    def gen_train(self, clusters, k=300, batch_size=1000):
+    def generate_train(self, clusters, k=300, batch_size=1000):
         while True:
             yield self.sampler(clusters, k, batch_size)
 
-    def gen_test(self, test_data, k=300):
-        names = []
+    def generate_valid(self, author_data, k=300):
         X = []
         y = []
-        for name, author in test_data.items():
+        for _, author in author_data.items():
             num_clusters = len(author)
             sampled = []
             embs = []
@@ -82,24 +80,29 @@ class ClusterModel:
             for paper_id in sampled_points:
                 embs.append(self.feature_embs[paper_id])
 
-            names.append(name)
             X.append(np.stack(embs))
             y.append(num_clusters)
 
-        
-        return names, np.stack(X), np.stack(y)
+        return np.stack(X), np.stack(y)
 
 
-    def train(self, vailidation_data, k=300, seed=1106):
+    def train(self, author_data, k=300, seed=1106):
         np.random.seed(seed)
         clusters = []
-        for domain in self.author_data.values():
+        for domain in author_data.values():
             for cluster in domain.values():
                 clusters.append(cluster)
 
-        _, test_X, test_y = self.gen_test(vailidation_data, k)
-        self.model.fit_generator(self.gen_train(clusters, k, batch_size=1000), steps_per_epoch=100, epochs=300, validation_data=(test_X, test_y))
+        valid_X, valid_y = self.generate_valid(author_data)
+        self.model.fit_generator(self.generate_train(clusters, k, batch_size=1000), steps_per_epoch=100, epochs=1, validation_data=(valid_X, valid_y))
 
-    def predict(self, predict_data, path=None):
-        pred_names, pred_X, pred_y = self.gen_test(predict_data)
-        return self.model.predict(pred_X), pred_names, pred_X, pred_y
+    def predict(self, X, feature_embs):
+        emb = []
+        for paper_id in X:
+            if paper_id in feature_embs:
+                emb.append(feature_embs[paper_id])
+            else:
+                emb.append(np.zeros(100))
+        if len(emb) == 0:
+            return
+        return self.model.predict(np.stack(emb)[np.newaxis,:,:])

@@ -44,8 +44,11 @@ class Disambiguation:
         self.pub_data = None
         self.author_data = None
 
-        self.cur_params = {}
+        self.paper_embs = {}
+        self.global_emb = {}
         self.cur_size = 0
+
+        self.style = "None"
 
         self.model = None
         self.triplet_model = None
@@ -146,9 +149,9 @@ class Disambiguation:
             if len(papers) < 5:
                 continue
             for paper_id in papers:
-                if paper_id not in self.cur_params:
+                if paper_id not in self.global_emb:
                     continue
-                embs.append(self.cur_params[paper_id])
+                embs.append(self.global_emb[paper_id])
                 paper_ids.append(paper_id)
                 author_ids.append(author_id)
 
@@ -188,8 +191,8 @@ class Disambiguation:
         return adj, np.array(features), labels, ids
 
     def __embedding_params(self, paper_embs):
-        self.cur_params = paper_embs
-        self.cur_size = 100
+        self.paper_embs = paper_embs
+        self.style = "embedding"
 
     def __global_params(self, paper_embs, triplet_model):
         embs = []
@@ -205,11 +208,11 @@ class Disambiguation:
         embs = np.stack(embs)
         embs = triplet_model.get_inter(embs)
 
-        self.cur_params = {}
+        self.global_emb = {}
         for i, emb in enumerate(embs):
-            self.cur_params[paper_ids[i]] = emb
+            self.global_emb[paper_ids[i]] = emb
 
-        self.cur_size = 64
+        self.style = "global"
 
     def __local_params(self, paper_embs, local_emb):
         for paper_id, emb in paper_embs.items():
@@ -329,21 +332,24 @@ class Disambiguation:
 
         return triplet_model
 
-    def cluster(self, report_path=None):
-        model = ClusterModel(dimension=self.cur_size)
-        model.fit(self.author_data, self.cur_params)
-        cluster_size, pred_names, pred_X, pred_y = model.predict(self.author_data)
-
-        if report_path:
-            with open(join(PROJ_DIR, "report", report_path), "w") as f:
-                for i, name in enumerate(pred_names):
-                    f.write('{}\t{}\t{}\n'.format(name, pred_y[i], cluster_size[i][0]))
-                f.close()
+    def cluster(self, X, paper_embs):
+        model = ClusterModel(dimension=EMB_DIM)
+        model.fit(self.author_data, self.paper_embs)
+        cluster_size = []
+        for _, papers in X.items():
+            pred_y = model.predict(papers, paper_embs)
+            cluster_size.append(pred_y[0] if pred_y else 0)
+        
+        return cluster_size
 
     def predict(self, paper_ids, cluster_size):
         params = []
         for paper_id in paper_ids:
-            param = self.cur_params[paper_id] if paper_id in self.cur_params else np.zeros(self.cur_size)
+            if self.style == "embedding":
+                param = self.paper_embs[paper_id] if paper_id in self.paper_embs else np.zeros(100)
+            elif self.style == "global":
+                param = self.global_emb[paper_id] if paper_id in self.global_emb else np.zeros(64)
+
             params.append(param)
 
         params = np.stack(params)
@@ -388,15 +394,14 @@ if __name__ == '__main__':
 
     # model.train_embedding()
     model.load_embedding()
-    # model.cluster("embedding_cluster.csv")
     prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.csv".format(time.time()))
     print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
     # model.train_global()
-    model.load_global()
+    # model.load_global()
     # model.cluster("global_cluster.csv")
-    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "global_{:.0f}.csv".format(time.time()))
-    print("Global precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
+    # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "global_{:.0f}.csv".format(time.time()))
+    # print("Global precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
     # model.train_local()
     # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "local_{:.0f}.csv".format(time.time()))
