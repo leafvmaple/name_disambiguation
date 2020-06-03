@@ -53,16 +53,16 @@ class Disambiguation:
         self.model = None
         self.triplet_model = None
 
-    def __generate_feature(self):
+    def __generate_feature(self, pub_data):
         paper_feats = {}
         print("---------Get Teatures------------")
         cnt = 0
-        for paper_id, data in self.pub_data.items():
+        for paper_id, data in pub_data.items():
             #author_features = get_author_feature(paper_id, data)
             #if author_features is not None:
             #    paper_feats[paper_id] = author_features
             if cnt % 1000 == 0:
-                print("({}/{})".format(cnt, len(self.pub_data)))
+                print("({}/{})".format(cnt, len(pub_data)))
             cnt += 1
 
             count = len(data["authors"])
@@ -96,18 +96,18 @@ class Disambiguation:
 
         return paper_idf, Word2Vec(paper_data, size=EMB_DIM, window=5, min_count=5, workers=20)
 
-    def __generate_triplet(self, paper_embs):
+    def __generate_triplet(self, paper_embs, author_data):
         anchor_data = []
         pos_data = []
         neg_data = []
         paper_ids = []
 
-        for _, author in self.author_data.items():
+        for _, author in author_data.items():
             for _, papers in author.items():
                 for paper_id in papers:
                     paper_ids.append(paper_id)
 
-        for _, author in self.author_data.items():
+        for _, author in author_data.items():
             for _, papers in author.items():
                 for i, paper_id in enumerate(papers):
                     if paper_id not in paper_embs:
@@ -197,13 +197,12 @@ class Disambiguation:
     def __global_params(self, paper_embs, triplet_model):
         embs = []
         paper_ids = []
-        for _, author in self.author_data.items():
-            for _, papers in author.items():
-                for paper_id in papers:
-                    if paper_id not in paper_embs:
-                        continue
-                    embs.append(paper_embs[paper_id])
-                    paper_ids.append(paper_id)
+        for _, papers in self.author_data.items():
+            for paper_id in papers:
+                if paper_id not in paper_embs:
+                    continue
+                embs.append(paper_embs[paper_id])
+                paper_ids.append(paper_id)
 
         embs = np.stack(embs)
         embs = triplet_model.get_inter(embs)
@@ -220,23 +219,21 @@ class Disambiguation:
 
         self.cur_size = 100
 
-    def generate_embedding(self):
+    def generate_embedding(self, pub_data):
         print("---------embedding------------")
         paper_embs = {}
-        paper_feats = self.__generate_feature()
+        paper_feats = self.__generate_feature(pub_data)
         paper_idf, model = self.__word2vec(paper_feats)
 
         for paper_id, author_feature in paper_feats.items():
             paper_embs[paper_id] = get_feature_emb(paper_id, author_feature, paper_idf, model)
 
-        self.__embedding_params(paper_embs)
-
         return paper_embs, paper_feats, paper_idf, model
 
-    def generate_global(self):
+    def generate_global(self, author_data):
         print("---------global------------")
         _, _, paper_embs = self.load_embedding()
-        triplet_data = self.__generate_triplet(paper_embs)
+        triplet_data = self.__generate_triplet(paper_embs, author_data)
 
         triplet_model = GlobalTripletModel(EMB_DIM)
         triplet_model.fit(triplet_data)
@@ -283,7 +280,8 @@ class Disambiguation:
         self.author_data = author_data
 
     def train_embedding(self):
-        paper_embs, paper_feats, paper_idf, model = self.generate_embedding()
+        paper_embs, paper_feats, paper_idf, model = self.generate_embedding(self.pub_data)
+        self.__embedding_params(paper_embs)
 
         os.makedirs(join(PROJ_DIR, "temp"), exist_ok=True)
         with open(join(PROJ_DIR, "temp", "embedding_paper_feats.json"), 'w') as f:
@@ -297,8 +295,8 @@ class Disambiguation:
 
         model.save(join(PROJ_DIR, "temp", "embedding_w2v.model"))
 
-    def train_global(self):
-        triplet_model = self.generate_global()
+    def train_global(self, author_data):
+        triplet_model = self.generate_global(author_data)
         triplet_model.save(join(PROJ_DIR, "temp", "global_model"))
 
     def train_local(self):
@@ -332,9 +330,11 @@ class Disambiguation:
 
         return triplet_model
 
-    def cluster(self, X, paper_embs):
+    def cluster(self, train_row_data, pub_data, X):
         model = ClusterModel(dimension=EMB_DIM, k=600)
-        model.fit(self.author_data, self.paper_embs)
+        model.fit(train_row_data, self.paper_embs)
+
+        paper_embs, _, _, _ = self.generate_embedding(pub_data)
 
         return model.predict(X, paper_embs)
 
@@ -391,17 +391,15 @@ if __name__ == '__main__':
 
 
     model = Disambiguation()
-    model.fit(train_pub_data, train_row_data)
+    model.fit(train_pub_data, test_author_data)
 
     # model.train_embedding()
     model.load_embedding()
-    clusters = model.cluster(test_author_data, model.paper_embs)
-    for size in clusters:
-        print(size)
-    # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.csv".format(time.time()))
-    # print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
+    clusters = model.cluster(train_row_data, train_pub_data, test_author_data)
+    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.csv".format(time.time()))
+    print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
-    # model.train_global()
+    # model.train_global(train_row_data)
     # model.load_global()
     # model.cluster("global_cluster.csv")
     # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "global_{:.0f}.csv".format(time.time()))

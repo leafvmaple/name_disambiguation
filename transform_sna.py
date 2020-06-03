@@ -6,11 +6,6 @@ train_author_data = json.load(open('data/sna_data/sna_valid_author_raw.json', 'r
 
 author_table = {}
 
-author_fix = {
-    "bo_shen": ["bo_chen"],
-    "jie_luo": ["luo_jiayan"]
-}
-
 f = open("error.txt", 'w', encoding='utf-8')
 
 def get_author_index(paper_id, author_name):
@@ -36,10 +31,6 @@ def get_author_index(paper_id, author_name):
         if v.replace("_", "") in author_names:
             return i
 
-    if author_name in author_fix:
-        for i, v in enumerate(author_table[paper_id]):
-            if v in author_fix[author_name]:
-                return i
     f.write("{} {} {} {}\n".format(author_name, paper_id, author_names, author_table[paper_id]))
 
 for paper_id, data in train_pub_data.items():
