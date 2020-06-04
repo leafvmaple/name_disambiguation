@@ -2,8 +2,8 @@ from os.path import join
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, LSTM, Bidirectional
+from tensorflow.keras.models import Sequential, model_from_json
+from tensorflow.keras.layers import Dense, LSTM, Dropout, Bidirectional
 
 class ClusterModel:
     def __init__(self, dimension=100, k=300):
@@ -93,13 +93,13 @@ class ClusterModel:
             for paper_id in papers:
                 sampled.append(paper_id)
 
-            sampled = [v for v in sampled if v in self.feature_embs]
+            sampled = [v for v in sampled if v in feature_embs]
             if len(sampled) == 0:
                 continue
 
             sampled_points = [sampled[v] for v in np.random.choice(len(sampled), self.k, replace=True)]
             for paper_id in sampled_points:
-                embs.append(self.feature_embs[paper_id])
+                embs.append(feature_embs[paper_id])
 
             X.append(np.stack(embs))
 
@@ -113,8 +113,21 @@ class ClusterModel:
                 clusters.append(cluster)
 
         valid_X, valid_y = self.generate_valid(author_data)
-        self.model.fit_generator(self.generate_train(clusters, batch_size=1000), steps_per_epoch=100, epochs=1, validation_data=(valid_X, valid_y))
+        self.model.fit_generator(self.generate_train(clusters, batch_size=1000), steps_per_epoch=100, epochs=100, validation_data=(valid_X, valid_y))
 
     def predict(self, author_data, feature_embs):
         pred_X = self.generate_predict(author_data, feature_embs)
         return self.model.predict(pred_X)
+
+    def save(self, path):
+        with open(path + ".json", 'w') as f:
+            f.write(self.model.to_json())
+            f.close()
+
+        self.model.save_weights(path + "-weights.h5")
+
+    def load(self, path):
+        with open(path + ".json", 'r') as f:
+            self.model = model_from_json(f.read())
+            f.close()
+            self.model.load_weights(path + "-weights.h5")
