@@ -406,24 +406,19 @@ if __name__ == '__main__':
     model = Disambiguation()
     model.fit(train_pub_data, test_author_data)
 
-    # model.train_embedding()
-    model.load_embedding()
+    model.train_embedding()
+    # model.load_embedding()
     model.train_cluster(train_row_data)
-    # clusters = model.predict_cluster(test_pub_data, test_row_data)
-    
-    # with open(join(PROJ_DIR, "output", "clusters.pkl"), 'wb') as f:
-    #    pickle.dump(clusters, f)
 
     prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "embedding_{:.0f}.csv".format(time.time()))
     print("Embedding precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
-    #model.train_global(train_row_data)
-    model.load_global()
+    model.train_global(train_row_data)
+    # model.load_global()
     prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "global_{:.0f}.csv".format(time.time()))
     print("Global precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
-    # model.train_local()
-    # prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "local_{:.0f}.csv".format(time.time()))
-    # print("Local precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
+    model.train_local()
+    prec, rec, f1 = model.score(test_author_data, test_label_data, test_size_data, "local_{:.0f}.csv".format(time.time()))
+    print("Local precision {:.5f} recall {:.5f} f1 {:.5f}". format(prec, rec, f1))
 
-    # model.train_local_model(train_row_data)
