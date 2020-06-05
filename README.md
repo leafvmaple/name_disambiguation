@@ -1,6 +1,6 @@
 # 同名消歧-竞赛
 
-该思路代替分为以下几步：
+该思路分为以下几步：
 
 1. 从论文pub中提取出title, keywords, venue, org等features。
 2. 将得到的featrues使用word2vec构建embedding。
